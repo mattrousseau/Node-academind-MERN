@@ -1,10 +1,12 @@
 const HttpError = require('../models/http-error');
 const uuid = require('uuid/v4');
+const { validationResult } = require('express-validator');
+const getCoordsForAddress = require('../util/location');
 
 let DUMMY_PLACES = [
   {
     id: 'p1',
-    title: 'Empire State Buildind',
+    title: 'Empire State Building',
     description: 'One of the most famous skyscraper in the world!',
     location: {
       lat: 40.7484,
@@ -43,7 +45,7 @@ const getPlacesByUserId = (req, res, next) => {
 
   const places = DUMMY_PLACES.filter(place => place.creator === userId);
 
-  if (places === undefined || places.length == 0) {
+  if (!places || places.length === 0) {
     return next(
       new HttpError('could not find a place for the provided user id', 404)
     );
@@ -52,14 +54,30 @@ const getPlacesByUserId = (req, res, next) => {
   res.json({ places });
 };
 
-const createPlace = (req, res, next) => {
-  const { title, description, coordinates, address, creator } = req.body;
-  // const title = req.body.title;
+const createPlace = async (req, res, next) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    const errorMessage = errors.array({ onlyFirstError: true })[0].msg;
+    const errorInput = errors.array({ onlyFirstError: true })[0].param;
+    return next(new HttpError(`${errorInput}: ${errorMessage}`, 422));
+  }
+
+  const { title, description, address, creator } = req.body;
+
+  let location;
+  try {
+    location = await getCoordsForAddress(address);
+  } catch (error) {
+    return next(error);
+  }
+  console.log(location);
+
   const createdPlace = {
     id: uuid(),
     title,
     description,
-    location: coordinates,
+    location,
     address,
     creator
   };
@@ -70,7 +88,14 @@ const createPlace = (req, res, next) => {
 };
 
 const updatePlaceById = (req, res, next) => {
-  const placeId = req.params.pid;
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    const errorMessage = errors.array({ onlyFirstError: true })[0].msg;
+    const errorInput = errors.array({ onlyFirstError: true })[0].param;
+    throw new HttpError(`${errorInput}: ${errorMessage}`, 422);
+  }
+
   const { title, description } = req.body;
 
   const updatedPlace = {
@@ -89,6 +114,10 @@ const updatePlaceById = (req, res, next) => {
 
 const deletePlace = (req, res, next) => {
   const placeId = req.params.pid;
+  if (!DUMMY_PLACES.find(p => p.id === placeId)) {
+    throw new HttpError('Place not found for that id', 404);
+  }
+
   DUMMY_PLACES = DUMMY_PLACES.filter(p => p.id !== placeId);
 
   res.status(200).json({ message: 'deleted place!' });
