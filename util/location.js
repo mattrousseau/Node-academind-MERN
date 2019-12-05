@@ -3,11 +3,6 @@ const axios = require('axios');
 const HttpError = require('../models/http-error');
 
 const getCoordsForAddress = async address => {
-  console.log(
-    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-      address
-    )}.json?access_token=${process.env.MAPBOX_API_KEY}`
-  );
   const response = await axios.get(
     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
       address
@@ -15,7 +10,6 @@ const getCoordsForAddress = async address => {
   );
 
   const mapboxData = response.data;
-  console.log(mapboxData);
 
   if (!mapboxData || mapboxData.features.length === 0) {
     throw new HttpError(
